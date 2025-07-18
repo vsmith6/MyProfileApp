@@ -23,6 +23,17 @@ pipeline {
             steps {
                 archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
             }
+	    stage('Tag Release') {
+		    steps {
+		        script {
+		            def tag = "v1.0.${env.BUILD_NUMBER}"
+		            sh "git config user.name 'Jenkins CI'"
+		            sh "git config user.email 'ci@jenkins'"
+		            sh "git tag -a ${tag} -m 'Automated build ${tag}'"
+		            sh "git push origin ${tag}"
+	        }
+    }
+}
         }
 
         // Optional deployment
