@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        JAVA_HOME = '/usr/lib/jvm/java-17-openjdk'
+        JAVA_HOME = '/usr/lib/jvm/java-17-openjdk-amd64'
         MAVEN_OPTS = '-Xmx1024m'
         BUILD_TAG = "v1.0.${env.BUILD_NUMBER}"
     }
