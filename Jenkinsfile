@@ -2,12 +2,13 @@ pipeline {
     agent any
 
     environment {
-        JAVA_HOME = '/usr/lib/jvm/java-17-openjdk' // Update if needed
+        JAVA_HOME = '/usr/lib/jvm/java-17-openjdk'
         MAVEN_OPTS = '-Xmx1024m'
+        BUILD_TAG = "v1.0.${env.BUILD_NUMBER}"
     }
 
     stages {
-        stage('Clone Repository') {
+        stage('Clone') {
             steps {
                 checkout scm
             }
@@ -15,32 +16,45 @@ pipeline {
 
         stage('Build & Test') {
             steps {
-                sh './mvnw clean verify -Dspring.profiles.active=test'
+                script {
+                    if (env.BRANCH_NAME == 'main') {
+                        sh './mvnw clean verify -Dspring.profiles.active=prod'
+                    } else if (env.BRANCH_NAME == 'develop') {
+                        sh './mvnw clean verify -Dspring.profiles.active=test'
+                    } else {
+                        sh './mvnw clean verify -Dspring.profiles.active=dev'
+                    }
+                }
             }
         }
 
-        stage('Archive Artifacts') {
+        stage('Tag Release') {
+            when {
+                branch 'main'
+            }
+            steps {
+                script {
+                    sh "git config user.name 'Jenkins CI'"
+                    sh "git config user.email 'ci@jenkins'"
+                    sh "git tag -a ${BUILD_TAG} -m 'Build from ${env.BRANCH_NAME}: ${BUILD_TAG}'"
+                    sh "git push origin ${BUILD_TAG}"
+                }
+            }
+        }
+
+        stage('Archive JAR') {
             steps {
                 archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
             }
-	    stage('Tag Release') {
-		    steps {
-		        script {
-		            def tag = "v1.0.${env.BUILD_NUMBER}"
-		            sh "git config user.name 'Jenkins CI'"
-		            sh "git config user.email 'ci@jenkins'"
-		            sh "git tag -a ${tag} -m 'Automated build ${tag}'"
-		            sh "git push origin ${tag}"
-	        }
-    }
-}
         }
+    }
 
-        // Optional deployment
-        // stage('Deploy') {
-        //     steps {
-        //         sh './mvnw spring-boot:run -Dspring.profiles.active=s3'
-        //     }
-        // }
+    post {
+        success {
+            echo "✅ Build complete for branch ${env.BRANCH_NAME}"
+        }
+        failure {
+            echo "❌ Build failed for branch ${env.BRANCH_NAME}"
+        }
     }
 }
