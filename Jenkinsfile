@@ -9,7 +9,15 @@ pipeline {
     stages {
         stage('Clone') {
             steps {
-                checkout scm
+                // ✅ Secure GitHub access via SSH and Jenkins credentials
+                checkout([
+                    $class: 'GitSCM',
+                    branches: [[name: '*/main']],
+                    userRemoteConfigs: [[
+                        url: 'git@github.com:vsmith6/MyProfileApp.git',
+                        credentialsId: 'aac201d4-bb2e-4dbc-b862-2c1101a55e09' // 🔐 Your SSH credential ID from Jenkins
+                    ]]
+                ])
             }
         }
 
@@ -39,9 +47,8 @@ pipeline {
 
                     def cleanVersion = currentVersion.replace('-SNAPSHOT', '')
                     def parts = cleanVersion.tokenize('.').collect { it.toInteger() }
-
-                    while (parts.size() < 3) { parts << 0 } // Ensure major.minor.patch
-                    parts[2]++ // Always bump patch
+                    while (parts.size() < 3) { parts << 0 }
+                    parts[2]++
 
                     def newVersion = parts.join('.') + '-SNAPSHOT'
                     echo "🔧 Branch build using version: ${newVersion}"
@@ -65,9 +72,8 @@ pipeline {
 
                     def cleanVersion = currentVersion.replace('-SNAPSHOT', '')
                     def parts = cleanVersion.tokenize('.').collect { it.toInteger() }
-
                     while (parts.size() < 3) { parts << 0 }
-                    parts[2]++ // Patch bump for release
+                    parts[2]++
                     def newVersion = parts.join('.')
 
                     echo "🏷️ Finalizing release version: v${newVersion}"
