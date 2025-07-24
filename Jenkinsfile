@@ -37,10 +37,13 @@ pipeline {
                         script: "./mvnw help:evaluate -Dexpression=project.version -q -DforceStdout"
                     ).trim()
 
-                    def parts = currentVersion.tokenize('.').collect { it.toInteger() }
+                    def cleanVersion = currentVersion.replace('-SNAPSHOT', '')
+                    def parts = cleanVersion.tokenize('.').collect { it.toInteger() }
+
+                    while (parts.size() < 3) { parts << 0 } // Ensure major.minor.patch
                     parts[2]++ // Always bump patch
 
-                    def newVersion = parts.join('.')
+                    def newVersion = parts.join('.') + '-SNAPSHOT'
                     echo "🔧 Branch build using version: ${newVersion}"
 
                     sh "./mvnw versions:set -DnewVersion=${newVersion}"
@@ -60,8 +63,11 @@ pipeline {
                         script: "./mvnw help:evaluate -Dexpression=project.version -q -DforceStdout"
                     ).trim()
 
-                    def parts = currentVersion.tokenize('.').collect { it.toInteger() }
-                    parts[2]++ // Patch bump for merged feature
+                    def cleanVersion = currentVersion.replace('-SNAPSHOT', '')
+                    def parts = cleanVersion.tokenize('.').collect { it.toInteger() }
+
+                    while (parts.size() < 3) { parts << 0 }
+                    parts[2]++ // Patch bump for release
                     def newVersion = parts.join('.')
 
                     echo "🏷️ Finalizing release version: v${newVersion}"
