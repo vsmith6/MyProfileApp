@@ -48,7 +48,7 @@ pipeline {
                     def cleanVersion = currentVersion.replace('-SNAPSHOT', '')
                     def parts = cleanVersion.tokenize('.').collect { it.toInteger() }
                     while (parts.size() < 3) { parts << 0 }
-                    parts[2]++
+                    parts[2]++ // Patch bump for non-main
 
                     def newVersion = parts.join('.') + '-SNAPSHOT'
                     echo "🔧 Branch build using version: ${newVersion}"
@@ -65,6 +65,7 @@ pipeline {
             }
             steps {
                 script {
+                    // 🎯 Read current project version
                     def currentVersion = sh(
                         returnStdout: true,
                         script: "./mvnw help:evaluate -Dexpression=project.version -q -DforceStdout"
@@ -73,23 +74,39 @@ pipeline {
                     def cleanVersion = currentVersion.replace('-SNAPSHOT', '')
                     def parts = cleanVersion.tokenize('.').collect { it.toInteger() }
                     while (parts.size() < 3) { parts << 0 }
-                    parts[2]++
-                    def newVersion = parts.join('.')
+                    parts[2]++ // Patch bump for release
 
+                    def newVersion = parts.join('.')
                     echo "🏷️ Finalizing release version: v${newVersion}"
 
+                    // 🔧 Apply bumped version to pom.xml
                     sh "./mvnw versions:set -DnewVersion=${newVersion}"
                     sh "./mvnw versions:commit"
 
+                    // 📝 Commit version change
                     sh """
                         git config user.name 'Jenkins CI'
                         git config user.email 'ci@jenkins'
                         git add pom.xml
                         git commit -m 'Release v${newVersion}'
-                        git tag -a v${newVersion} -m 'Release v${newVersion}'
-                        git push origin HEAD:main
-                        git push origin v${newVersion}
                     """
+
+                    // 🧪 Check for tag existence
+                    def tagExists = sh(
+                        returnStatus: true,
+                        script: "git rev-parse -q --verify refs/tags/v${newVersion}"
+                    ) == 0
+
+                    // 🏷️ Tag and push if not already tagged
+                    if (!tagExists) {
+                        sh "git tag -a v${newVersion} -m 'Release v${newVersion}'"
+                        sh "git push origin v${newVersion}"
+                    } else {
+                        echo "⚠️ Tag v${newVersion} already exists, skipping tag creation"
+                    }
+
+                    // 🚀 Push changes to main branch
+                    sh "git push origin HEAD:main"
                 }
             }
         }
