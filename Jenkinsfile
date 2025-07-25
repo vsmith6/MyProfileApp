@@ -11,7 +11,7 @@ pipeline {
             steps {
                 checkout([
                     $class: 'GitSCM',
-                    branches: [[name: '*/main']],
+                    branches: [[name: "*/${env.BRANCH_NAME}"]],
                     userRemoteConfigs: [[
                         url: 'git@github.com:vsmith6/MyProfileApp.git',
                         credentialsId: 'aac201d4-bb2e-4dbc-b862-2c1101a55e09' // 🔐 SSH credentials
@@ -31,6 +31,11 @@ pipeline {
         }
 
         stage('Bump Version for Branch') {
+            when {
+                not {
+                    branch 'main'
+                }
+            }
             steps {
                 script {
                     def currentVersion = sh(
@@ -53,9 +58,9 @@ pipeline {
         }
 
         stage('Tag and Release on Main') {
-/*            when {
+            when {
                 branch 'main'
-            }*/
+            }
             steps {
                 withCredentials([sshUserPrivateKey(credentialsId: 'aac201d4-bb2e-4dbc-b862-2c1101a55e09', keyFileVariable: 'SSH_KEY')]) {
                     script {
@@ -75,15 +80,17 @@ pipeline {
                         sh "./mvnw versions:set -DnewVersion=${newVersion}"
                         sh "./mvnw versions:commit"
 
-                        sh """
-                            eval \$(ssh-agent -s)
-                            ssh-add \$SSH_KEY
+                        // Configure Git and Push with SSH
+                        sh "git config user.name 'Jenkins CI'"
+                        sh "git config user.email 'ci@jenkins'"
 
-                            git config user.name 'Jenkins CI'
-                            git config user.email 'ci@jenkins'
-                            git add pom.xml
-                            git commit -m 'Release v${newVersion}'
-                        """
+                        def changed = sh(returnStatus: true, script: "git diff --quiet pom.xml") != 0
+                        if (changed) {
+                            sh "git add pom.xml"
+                            sh "git commit -m 'Release v${newVersion}'"
+                        } else {
+                            echo "🔍 No changes to pom.xml to commit"
+                        }
 
                         def tagExists = sh(
                             returnStatus: true,
@@ -92,12 +99,14 @@ pipeline {
 
                         if (!tagExists) {
                             sh "git tag -a v${newVersion} -m 'Release v${newVersion}'"
-                            sh "git push origin v${newVersion}"
                         } else {
                             echo "⚠️ Tag v${newVersion} already exists, skipping tag creation"
                         }
 
-                        sh "git push origin HEAD:main"
+                        withEnv(["GIT_SSH_COMMAND=ssh -i $SSH_KEY -o IdentitiesOnly=yes"]) {
+                            sh "git push origin v${newVersion}"
+                            sh "git push origin HEAD:main"
+                        }
                     }
                 }
             }
