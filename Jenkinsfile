@@ -33,11 +33,11 @@ pipeline {
         }
 
         stage('Bump Version for Branch') {
-            when {
+/*            when {
                 not {
                     branch 'main'
                 }
-            }
+            }*/
             steps {
                 script {
                     def currentVersion = sh(
